@@ -13,3 +13,4 @@ google-generativeai
 python-telegram-bot
 orjson
 sqlite-utils
+python-dotenv
