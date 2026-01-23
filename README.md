@@ -27,13 +27,12 @@
 ### Pipeline Flow
 
 ```
-1. SCRAPE     →  Fetch articles from 8 cybersecurity news sources
-2. DEDUPE     →  Filter out already-processed articles (via DB or in-memory)
-3. BATCH AI   →  Send 40 titles at a time to Gemini for relevance filtering
-4. ENRICH     →  Fetch full article content for approved articles
-5. SCORE      →  Individual AI scoring (0-10 scale)
-6. PUBLISH    →  Articles scoring ≥6.0 go to Telegram
-7. SAVE       →  Mark as posted in database (if enabled)
+1. SCRAPE      →  Fetch articles from 8 cybersecurity news sources
+2. DEDUPE      →  Filter out already-processed articles (via DB or in-memory)
+3. AI FILTER+SCORE →  40 articles per API call: filter & score (0-10) in ONE request
+4. ENRICH      →  Fetch full article content for approved articles (score ≥6.0)
+5. PUBLISH     →  Send approved articles to Telegram
+6. SAVE        →  Mark as posted in database (if enabled)
 ```
 
 ### Core Modules

@@ -77,50 +77,41 @@ async def main():
     logger.info(f"Found {len(new_articles)} new articles (after deduplication)")
     
     
-    # 2.5 BATCH FILTERING WITH IMMEDIATE PROCESSING
-    # Process each batch immediately: filter → enrich → score → publish
+    # 2.5 COMBINED BATCH FILTER + SCORE (1 API call per 40 articles)
     if len(new_articles) > 0:
-        logger.info(f"Starting streaming batch processing of {len(new_articles)} articles...")
+        logger.info(f"Starting batch processing of {len(new_articles)} articles...")
         
         published_count = 0
-        total_approved = 0
         batch_size = 40
         
         for batch_num in range(0, len(new_articles), batch_size):
             batch = new_articles[batch_num:batch_num + batch_size]
             logger.info(f"\n🔄 Processing batch {batch_num//batch_size + 1} ({len(batch)} articles)...")
             
-            # Step 1: Filter this batch by titles
-            approved_batch = await scorer.batch_filter_articles(batch, batch_size=len(batch))
-            total_approved += len(approved_batch)
-            logger.info(f"  ✅ Approved {len(approved_batch)}/{len(batch)} articles in this batch")
+            # Step 1: Combined filter + score (1 API call!)
+            # Returns only approved articles (score >= 6.0) with scores already set
+            approved_batch = await scorer.batch_filter_and_score_articles(batch, batch_size=len(batch))
             
             if not approved_batch:
+                logger.info(f"  ⏭️  No articles approved in this batch")
                 continue
             
-            # Step 2: Enrich approved articles in this batch
-            logger.info(f"  📥 Enriching {len(approved_batch)} articles...")
+            # Step 2: Enrich approved articles
+            logger.info(f"  📥 Enriching {len(approved_batch)} approved articles...")
             for article in approved_batch:
                 if not article.content:
                     await scrapers[0].enrich_article(article)
             
-            # Step 3: Score and publish immediately
-            logger.info(f"  🎯 Scoring and publishing...")
+            # Step 3: Publish (all approved articles have score >= 6.0)
+            logger.info(f"  📤 Publishing {len(approved_batch)} articles...")
             for idx, article in enumerate(approved_batch, 1):
-                score = await scorer.score_article(article)
-                article.score = score
                 db.save_article(article)
-                
-                if score >= 6.0:
-                    logger.info(f"    📰 [{idx}/{len(approved_batch)}] Score: {score} - Publishing!")
-                    await publisher.publish([article])
-                    db.mark_as_posted(article.content_hash)
-                    published_count += 1
-                else:
-                    logger.info(f"    ⏭️  [{idx}/{len(approved_batch)}] Score: {score} - Skipped")
+                logger.info(f"    📰 [{idx}/{len(approved_batch)}] Score: {article.score} - Publishing!")
+                await publisher.publish([article])
+                db.mark_as_posted(article.content_hash)
+                published_count += 1
         
         logger.info(f"\n✅ Batch processing complete!")
-        logger.info(f"   Total approved: {total_approved}/{len(new_articles)}")
         logger.info(f"   Total published: {published_count}")
     else:
         logger.info("No new articles to process.")
