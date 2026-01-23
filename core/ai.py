@@ -2,10 +2,132 @@ import google.generativeai as genai
 import os
 import logging
 import json
+import httpx
 from typing import Optional, List, Dict
 from core.models import Article
 
 logger = logging.getLogger(__name__)
+
+
+class LocalLLMScorer:
+    """
+    Optional local LLM scorer using OpenAI-compatible API (LM Studio / Ollama).
+    Enable with LOCAL_LLM_ENABLED=true environment variable.
+    """
+    
+    def __init__(self):
+        self.enabled = os.getenv("LOCAL_LLM_ENABLED", "false").lower() in ("true", "1", "yes")
+        self.endpoint = os.getenv("LOCAL_LLM_ENDPOINT", "http://localhost:1234/v1")
+        self.model = os.getenv("LOCAL_LLM_MODEL", "")  # Empty = use server default
+        self.client = None
+        
+        if self.enabled:
+            self.client = httpx.AsyncClient(timeout=120.0)
+            logger.info(f"🏠 Local LLM enabled: {self.endpoint}")
+            if self.model:
+                logger.info(f"   Model: {self.model}")
+        else:
+            logger.info("🌐 Using Gemini API (Local LLM disabled)")
+    
+    async def _call_local_llm(self, prompt: str) -> Optional[str]:
+        """Make a request to local LLM endpoint (OpenAI-compatible format)"""
+        if not self.client:
+            return None
+        
+        try:
+            payload = {
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 2048,
+            }
+            if self.model:
+                payload["model"] = self.model
+            
+            response = await self.client.post(
+                f"{self.endpoint}/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+            else:
+                logger.warning(f"Local LLM returned status {response.status_code}")
+                return None
+                
+        except httpx.ConnectError:
+            logger.warning(f"❌ Cannot connect to local LLM at {self.endpoint}")
+            return None
+        except Exception as e:
+            logger.warning(f"Local LLM error: {str(e)[:100]}")
+            return None
+    
+    async def batch_filter_and_score_articles(self, articles: List[Article], batch_size: int = 40) -> Optional[List[Article]]:
+        """
+        Combined filter + score using local LLM.
+        Returns None if local LLM unavailable (triggers Gemini fallback).
+        """
+        if not self.enabled or not self.client:
+            return None
+        
+        approved_articles = []
+        
+        for i in range(0, len(articles), batch_size):
+            batch = articles[i:i + batch_size]
+            
+            # Create article list
+            article_list = ""
+            for idx, article in enumerate(batch):
+                summary = (article.summary[:150] if article.summary else article.title)
+                article_list += f"{idx + 1}. [{article.source}] {article.title}\n   Summary: {summary}\n"
+            
+            prompt = f"""You are a Cybersecurity News Filter & Scorer. Review these {len(batch)} articles and score them 0.0-10.0.
+
+**Scoring Guidelines:**
+- 9-10: Critical 0-day exploits, major breaches affecting millions, industry-shifting events
+- 7-8: Important security patches, new attack vectors, notable research/reports, CVEs
+- 5-6: Routine security updates, vendor news, moderate interest
+- <5: Marketing fluff, basic tips, opinion pieces, event announcements (REJECT these)
+
+**Only include articles scoring 6.0 or higher in your response.**
+
+**Articles:**
+{article_list}
+
+**Instructions:**
+Reply with ONLY a JSON object. Key "articles" contains array of objects with "id" (1-{len(batch)}) and "score" (float 6.0-10.0).
+Only include articles you approve (score >= 6.0). Omit rejected articles entirely.
+Example: {{"articles": [{{"id": 1, "score": 7.5}}, {{"id": 5, "score": 8.2}}]}}
+"""
+            
+            response_text = await self._call_local_llm(prompt)
+            
+            if response_text is None:
+                # Local LLM failed - signal fallback to Gemini
+                return None
+            
+            try:
+                data = json.loads(response_text.strip().replace('```json', '').replace('```', ''))
+                scored_articles = data.get("articles", [])
+                
+                for item in scored_articles:
+                    article_id = item.get("id", 0)
+                    score = float(item.get("score", 0.0))
+                    if 1 <= article_id <= len(batch) and score >= 6.0:
+                        article = batch[article_id - 1]
+                        article.score = score
+                        approved_articles.append(article)
+                
+                logger.info(f"✅ [LOCAL] Batch {i//batch_size + 1}: Approved & scored {len(scored_articles)}/{len(batch)} articles")
+                
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning(f"Local LLM response parse error: {str(e)[:50]}. Falling back to Gemini.")
+                return None
+        
+        logger.info(f"🏠 [LOCAL] Total: {len(approved_articles)}/{len(articles)} articles approved & scored")
+        return approved_articles
+
 
 class GeminiScorer:
     def __init__(self):
@@ -399,3 +521,39 @@ Source: {article.source}
         logger.error(f"All attempts failed for article {article.title[:50]}")
         return 5.0  # Default middle score if all fails
 
+
+class AIScorer:
+    """
+    Unified AI Scorer - automatically selects between Local LLM and Gemini.
+    
+    Priority:
+    1. Local LLM (if LOCAL_LLM_ENABLED=true and server is available)
+    2. Gemini API (default fallback)
+    
+    Usage:
+        scorer = AIScorer()
+        approved = await scorer.batch_filter_and_score_articles(articles)
+    """
+    
+    def __init__(self):
+        self.local_llm = LocalLLMScorer()
+        self.gemini = GeminiScorer()
+        
+        if self.local_llm.enabled:
+            logger.info("🔀 AI Scorer: Local LLM → Gemini (fallback)")
+        else:
+            logger.info("🔀 AI Scorer: Gemini only")
+    
+    async def batch_filter_and_score_articles(self, articles: List[Article], batch_size: int = 40) -> List[Article]:
+        """
+        Combined filter + score. Uses local LLM if available, otherwise Gemini.
+        """
+        # Try local LLM first (if enabled)
+        if self.local_llm.enabled:
+            result = await self.local_llm.batch_filter_and_score_articles(articles, batch_size)
+            if result is not None:
+                return result
+            logger.info("⚠️ Local LLM unavailable, falling back to Gemini...")
+        
+        # Fallback to Gemini
+        return await self.gemini.batch_filter_and_score_articles(articles, batch_size)

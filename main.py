@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from core.http_client import HTTPClient
 from core.db import Database
-from core.ai import GeminiScorer
+from core.ai import AIScorer
 from core.publisher import TelegramPublisher
 
 # Working scrapers (8 verified)
@@ -39,7 +39,7 @@ async def main():
     db_enabled = os.getenv("ENABLE_DATABASE", "true").lower() in ("true", "1", "yes")
     db = Database(enabled=db_enabled)
     
-    scorer = GeminiScorer()
+    scorer = AIScorer()
     publisher = TelegramPublisher()
     
     # Scrapers - 8 verified working scrapers

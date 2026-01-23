@@ -104,6 +104,14 @@ GEMINI_API_KEY=your_gemini_api_key
 GEMINI_API_KEY_2=your_second_key
 GEMINI_API_KEY_3=your_third_key
 # ... up to GEMINI_API_KEY_10
+
+# ─────────────────────────────────────────────────────────
+# LOCAL LLM (Optional) - LM Studio / Ollama
+# ─────────────────────────────────────────────────────────
+# LOCAL_LLM_ENABLED=true
+# LOCAL_LLM_ENDPOINT=http://localhost:1234/v1   # LM Studio default
+# LOCAL_LLM_ENDPOINT=http://localhost:11434/v1  # Ollama default
+# LOCAL_LLM_MODEL=llama-3.2-3b                  # Optional, leave empty for server default
 ```
 
 ### Configuration Options
@@ -117,6 +125,49 @@ GEMINI_API_KEY_3=your_third_key
 | `TELEGRAM_CHAT_IDS_N` | - | Groups for bot N |
 | `GEMINI_API_KEY` | - | Primary Gemini API key |
 | `GEMINI_API_KEY_N` | - | Additional API keys (2-10) |
+| `LOCAL_LLM_ENABLED` | `false` | Enable local LLM (LM Studio/Ollama) |
+| `LOCAL_LLM_ENDPOINT` | `http://localhost:1234/v1` | Local LLM API endpoint |
+| `LOCAL_LLM_MODEL` | (auto) | Model name (optional) |
+
+---
+
+## 🏠 Local LLM Support (Optional)
+
+Use your own local LLM for **free, unlimited** article scoring with LM Studio or Ollama.
+
+### LM Studio Setup
+
+1. Download [LM Studio](https://lmstudio.ai/)
+2. Load a model (recommended: `llama-3.2-3b`, `mistral-7b`, or `phi-3-mini`)
+3. Start the server (default: `http://localhost:1234`)
+4. Set environment variables:
+```env
+LOCAL_LLM_ENABLED=true
+LOCAL_LLM_ENDPOINT=http://localhost:1234/v1
+```
+
+### Ollama Setup
+
+1. Install [Ollama](https://ollama.com/)
+2. Pull a model: `ollama pull llama3.2`
+3. Ollama automatically starts on port 11434
+4. Set environment variables:
+```env
+LOCAL_LLM_ENABLED=true
+LOCAL_LLM_ENDPOINT=http://localhost:11434/v1
+LOCAL_LLM_MODEL=llama3.2
+```
+
+### Recommended Models
+
+| Model | Size | Speed | Quality |
+|-------|------|-------|---------|
+| `llama-3.2-3b` | 2GB | ⚡ Fast | Good |
+| `mistral-7b` | 4GB | Medium | Great |
+| `phi-3-mini` | 2GB | ⚡ Fast | Good |
+| `llama-3.1-8b` | 5GB | Medium | Excellent |
+
+> **Note**: Local LLM is **optional**. If unavailable, the system automatically falls back to Gemini API.
 
 ---
 
