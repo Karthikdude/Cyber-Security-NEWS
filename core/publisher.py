@@ -143,14 +143,43 @@ class TelegramPublisher:
                         # Prepare message (same logic as before)
                         message = self._prepare_message(article)
                         
-                        await bot.send_message(
-                            chat_id=chat_id,
-                            text=message,
-                            parse_mode=telegram.constants.ParseMode.HTML,
-                            disable_web_page_preview=True
-                        )
-                        total_published += 1
-                        logger.info(f"Published '{article.title}' to bot {bot_idx}, group {chat_id}")
+                        # Add retry logic for 429 errors
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                await bot.send_message(
+                                    chat_id=chat_id,
+                                    text=message,
+                                    parse_mode=telegram.constants.ParseMode.HTML,
+                                    disable_web_page_preview=True
+                                )
+                                total_published += 1
+                                logger.info(f"Published '{article.title}' to bot {bot_idx}, group {chat_id}")
+                                
+                                # Respect Telegram rate limits: 1 message per second per chat limit
+                                # Global limit is 30 messages per second
+                                # Safe delay: 3 seconds between messages
+                                await asyncio.sleep(3)
+                                break
+                            except Exception as e:
+                                error_str = str(e).lower()
+                                if "429" in error_str or "flood" in error_str or "retry" in error_str:
+                                    wait_time = 30  # Default long wait
+                                    # Try to parse wait time from error message if possible
+                                    # e.g. "Flood control exceeded. Retry in 26 seconds"
+                                    import re
+                                    match = re.search(r'retry in (\d+) seconds', error_str)
+                                    if match:
+                                        wait_time = int(match.group(1)) + 5
+                                    
+                                    if attempt < max_retries - 1:
+                                        logger.warning(f"⚠️ Rate limit hit. Waiting {wait_time}s before retry {attempt+1}/{max_retries}...")
+                                        await asyncio.sleep(wait_time)
+                                        continue
+                                
+                                # If not rate limit error, or retries exhausted, re-raise to outer except
+                                raise e
+                                
                     except Exception as e:
                         logger.error(f"Error publishing to bot {bot_idx}, group {chat_id}: {e}")
             
