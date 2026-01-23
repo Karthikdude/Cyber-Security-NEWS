@@ -127,8 +127,8 @@ GEMINI_API_KEY_3=your_third_key
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/Cyber-NEWS.git
-cd Cyber-NEWS
+git clone https://github.com/Karthikdude/Cyber-Security-NEWS
+cd Cyber-Security-NEWS
 
 # Install dependencies
 pip install -r requirements.txt
