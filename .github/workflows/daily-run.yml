@@ -1,0 +1,56 @@
+name: Cyber-NEWS Daily Run
+
+on:
+  # Run every day at 4:00 PM IST (10:30 AM UTC)
+  schedule:
+    - cron: '30 10 * * *'
+  
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  run-news-aggregator:
+    runs-on: ubuntu-latest
+    # Timeout after 2 hours (stops at 6 PM IST if started at 4 PM IST)
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Cyber-NEWS Aggregator
+        env:
+          # Database toggle (set to 'false' to disable)
+          ENABLE_DATABASE: ${{ vars.ENABLE_DATABASE || 'false' }}
+          
+          # Telegram Configuration (Simple format)
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          
+          # Telegram Configuration (Multi-bot format - optional)
+          TELEGRAM_BOT_TOKEN_1: ${{ secrets.TELEGRAM_BOT_TOKEN_1 }}
+          TELEGRAM_CHAT_IDS_1: ${{ secrets.TELEGRAM_CHAT_IDS_1 }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_IDS_2: ${{ secrets.TELEGRAM_CHAT_IDS_2 }}
+          TELEGRAM_BOT_TOKEN_3: ${{ secrets.TELEGRAM_BOT_TOKEN_3 }}
+          TELEGRAM_CHAT_IDS_3: ${{ secrets.TELEGRAM_CHAT_IDS_3 }}
+          
+          # Gemini API Keys
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+        run: |
+          python main.py

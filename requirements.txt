@@ -1,0 +1,15 @@
+requests
+httpx[http2]
+beautifulsoup4
+lxml
+feedparser
+fake-useragent
+tenacity
+ratelimit
+readability-lxml
+python-dateutil
+rapidfuzz
+google-generativeai
+python-telegram-bot
+orjson
+sqlite-utils
