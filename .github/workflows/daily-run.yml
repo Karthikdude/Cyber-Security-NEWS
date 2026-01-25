@@ -12,8 +12,8 @@ on:
 jobs:
   run-news-aggregator:
     runs-on: ubuntu-latest
-    # Timeout after 2 hours (stops at 6 PM IST if started at 4 PM IST)
-    timeout-minutes: 120
+    # Timeout after 30 minutes (stops at 4:30 PM IST if started at 4:00 PM IST)
+    timeout-minutes: 30
     
     steps:
       - name: Checkout repository
