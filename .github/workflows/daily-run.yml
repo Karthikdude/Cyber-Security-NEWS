@@ -4,7 +4,7 @@ on:
   # Run every day at 4:00 PM IST (10:30 AM UTC)
   # Note: 10:30 UTC = 16:00 IST
   schedule:
-    - cron: '30 10 * * *'
+    - cron: '35 10 * * *'
   
   # Allow manual trigger from GitHub UI
   workflow_dispatch:
